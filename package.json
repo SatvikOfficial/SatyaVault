@@ -1,0 +1,17 @@
+{
+  "name": "satyavault",
+  "version": "1.0.0",
+  "description": "SatyaVault - Immutable Chain-of-Custody for Digital Evidence",
+  "private": true,
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:amoy": "hardhat run scripts/deploy.js --network amoy",
+    "bootstrap:roles": "hardhat run scripts/bootstrapRoles.js --network amoy"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "dotenv": "^16.4.5",
+    "hardhat": "^2.22.10"
+  }
+}

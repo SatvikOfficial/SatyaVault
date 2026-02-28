@@ -1,0 +1,35 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --ink: #0d2036;
+  --glass: rgba(255, 255, 255, 0.88);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 12% 10%, rgba(255, 153, 51, 0.22), transparent 35%),
+    radial-gradient(circle at 84% 80%, rgba(19, 136, 8, 0.20), transparent 40%),
+    linear-gradient(140deg, #e9f1fa, #f6fbff 40%, #edf4fb);
+}
+
+.gov-card {
+  background: var(--glass);
+  backdrop-filter: blur(8px);
+}
+
+.grid-pattern {
+  background-size: 18px 18px;
+}
+
+a {
+  color: inherit;
+}
