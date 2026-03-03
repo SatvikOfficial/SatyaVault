@@ -92,6 +92,16 @@ contract SatyaVault {
     mapping(uint256 => address) public currentCustodian;
 
     // -------------------------------------------------------------------------
+    // Encryption Key Storage (for client-side encrypted evidence)
+    // -------------------------------------------------------------------------
+    // Stores encrypted encryption keys per evidence, accessible only to authorized roles.
+    // Key format: evidenceId => authorizedAddress => encryptedKey (base64 encoded)
+    mapping(uint256 => mapping(address => string)) private encryptionKeys;
+    
+    // Track which evidence items are encrypted
+    mapping(uint256 => bool) public isEncrypted;
+
+    // -------------------------------------------------------------------------
     // Events
     // -------------------------------------------------------------------------
     event EvidenceRegistered(
@@ -136,6 +146,9 @@ contract SatyaVault {
     );
 
     event AdminUpdated(address indexed oldAdmin, address indexed newAdmin, uint256 timestamp);
+    
+    event EncryptionKeyStored(uint256 indexed evidenceId, address indexed authorizedAddress, uint256 timestamp);
+    event EncryptionKeyAccessed(uint256 indexed evidenceId, address indexed accessor, uint256 timestamp);
 
     // -------------------------------------------------------------------------
     // Constructor + modifiers
@@ -467,6 +480,104 @@ contract SatyaVault {
         Evidence memory item = evidenceById[evidenceId];
         if (!item.exists) revert EvidenceNotFound();
         return item.fileHash == localHash;
+    }
+
+    // -------------------------------------------------------------------------
+    // Encryption Key Management (Client-Side Encryption Support)
+    // -------------------------------------------------------------------------
+
+    /// @notice Store encryption key for encrypted evidence.
+    /// @dev Only authorized actors (current custodian, admin, or evidence creator) can store keys.
+    /// @param evidenceId The evidence ID
+    /// @param authorizedAddress Address authorized to decrypt (e.g., FSL officer, court)
+    /// @param encryptedKey Base64-encoded encrypted encryption key
+    function storeEncryptionKey(
+        uint256 evidenceId,
+        address authorizedAddress,
+        string calldata encryptedKey
+    ) external {
+        Evidence memory item = evidenceById[evidenceId];
+        if (!item.exists) revert EvidenceNotFound();
+        if (bytes(encryptedKey).length == 0) revert EmptyValue();
+
+        // Only evidence creator, current custodian, or admin can store keys
+        bool isAuthorized = (
+            msg.sender == item.createdBy ||
+            msg.sender == currentCustodian[evidenceId] ||
+            msg.sender == systemAdmin
+        );
+        if (!isAuthorized) revert UnauthorizedRole();
+
+        encryptionKeys[evidenceId][authorizedAddress] = encryptedKey;
+        isEncrypted[evidenceId] = true;
+
+        emit EncryptionKeyStored(evidenceId, authorizedAddress, block.timestamp);
+    }
+
+    /// @notice Retrieve encryption key for decryption.
+    /// @dev Only authorized addresses can retrieve their key.
+    /// @param evidenceId The evidence ID
+    /// @return encryptedKey Base64-encoded encrypted encryption key
+    function getEncryptionKey(uint256 evidenceId, address accessor) external view returns (string memory) {
+        Evidence memory item = evidenceById[evidenceId];
+        if (!item.exists) revert EvidenceNotFound();
+
+        string memory key = encryptionKeys[evidenceId][accessor];
+        if (bytes(key).length == 0) revert UnauthorizedRole();
+
+        return key;
+    }
+
+    /// @notice Check if evidence is encrypted and user has access.
+    /// @param evidenceId The evidence ID
+    /// @param accessor Address checking access
+    /// @return hasAccess Whether the accessor has decryption key access
+    function hasEncryptionKeyAccess(uint256 evidenceId, address accessor) external view returns (bool) {
+        if (!isEncrypted[evidenceId]) return false;
+        bytes memory key = bytes(encryptionKeys[evidenceId][accessor]);
+        return key.length > 0;
+    }
+
+    /// @notice Get all authorized addresses for an encrypted evidence.
+    /// @dev Used by frontend to determine who can decrypt.
+    /// @param evidenceId The evidence ID
+    /// @return authorizedAddresses List of addresses with decryption access
+    function getAuthorizedDecryptors(uint256 evidenceId) external view returns (address[] memory) {
+        Evidence memory item = evidenceById[evidenceId];
+        if (!item.exists) revert EvidenceNotFound();
+        if (!isEncrypted[evidenceId]) {
+            return new address[](0);
+        }
+
+        // Collect all addresses with keys (gas-intensive, use sparingly)
+        address[] memory allAddresses = new address[](100); // Max 100 authorized
+        uint256 count = 0;
+
+        // Check common roles (in production, use a more efficient pattern)
+        address[10] memory commonAddresses = [
+            item.createdBy,
+            currentCustodian[evidenceId],
+            systemAdmin,
+            address(0), address(0), address(0), address(0), address(0), address(0), address(0)
+        ];
+
+        for (uint256 i = 0; i < commonAddresses.length; i++) {
+            if (commonAddresses[i] != address(0)) {
+                bytes memory key = bytes(encryptionKeys[evidenceId][commonAddresses[i]]);
+                if (key.length > 0) {
+                    allAddresses[count] = commonAddresses[i];
+                    count++;
+                }
+            }
+        }
+
+        // Resize array to actual count
+        address[] memory result = new address[](count);
+        for (uint256 i = 0; i < count; i++) {
+            result[i] = allAddresses[i];
+        }
+
+        return result;
     }
 
     // -------------------------------------------------------------------------

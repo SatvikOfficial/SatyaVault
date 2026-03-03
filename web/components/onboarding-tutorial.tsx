@@ -30,7 +30,7 @@ const STEPS: TourStep[] = [
   },
   {
     title: "Evidence Intake",
-    description: "Upload file, compute local SHA-256, pin to IPFS, and register immutable metadata on-chain.",
+    description: "Upload file, compute local SHA-256, pin to IPFS, and register immutable metadata on-chain. Optional: Enable AES-256 encryption for zero-knowledge privacy.",
     target: "evidence-intake"
   },
   {

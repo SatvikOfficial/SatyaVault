@@ -5,7 +5,7 @@ require("dotenv").config();
  * Bootstrap SatyaVault actor profiles after deployment.
  *
  * Uses environment variables:
- * - CONTRACT_ADDRESS (required unless NEXT_PUBLIC_CONTRACT_ADDRESS is set)
+ * - CONTRACT_ADDRESS (required unless NEXT_PUBLIC_CONTRACT_ADDRESS / SATYAVAULT_CONTRACT_ADDRESS is set)
  * - INVESTIGATOR_WALLET (or legacy POLICE_WALLET)
  * - FSL_OFFICER_WALLET (or legacy FSL_WALLET)
  * - COURT_OFFICER_WALLET (or legacy COURT_WALLET)
@@ -14,10 +14,15 @@ require("dotenv").config();
  * - TRANSFER_ADMIN=true (optional, transfers admin ownership to MINISTRY_ADMIN_WALLET)
  */
 async function main() {
-  const contractAddress = process.env.CONTRACT_ADDRESS || process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
+  const contractAddress =
+    process.env.CONTRACT_ADDRESS ||
+    process.env.SATYAVAULT_CONTRACT_ADDRESS ||
+    process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
 
   if (!contractAddress) {
-    throw new Error("Missing CONTRACT_ADDRESS (or NEXT_PUBLIC_CONTRACT_ADDRESS) in environment.");
+    throw new Error(
+      "Missing CONTRACT_ADDRESS (or SATYAVAULT_CONTRACT_ADDRESS / NEXT_PUBLIC_CONTRACT_ADDRESS) in environment."
+    );
   }
 
   const satyaVault = await hre.ethers.getContractAt("SatyaVault", contractAddress);

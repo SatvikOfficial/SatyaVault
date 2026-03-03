@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 
+function getGatewayBase(): string {
+  const raw = process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud/ipfs/";
+  return raw.endsWith("/") ? raw : `${raw}/`;
+}
+
 export async function POST(request: Request) {
   try {
     const jwt = process.env.PINATA_JWT;
@@ -43,10 +48,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Pinata did not return CID." }, { status: 500 });
     }
 
+    const gatewayBase = getGatewayBase();
     return NextResponse.json({
       cid: payload.IpfsHash,
       ipfsUri: `ipfs://${payload.IpfsHash}`,
-      gatewayUrl: `https://gateway.pinata.cloud/ipfs/${payload.IpfsHash}`
+      gatewayUrl: `${gatewayBase}${payload.IpfsHash}`
     });
   } catch (error) {
     return NextResponse.json(

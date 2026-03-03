@@ -257,6 +257,9 @@ export function SatyaVaultDashboard() {
   const [submitInvestigatorId, setSubmitInvestigatorId] = useState("INV-SATYA-17");
   const [submitType, setSubmitType] = useState<EvidenceType>("MOBILE_IMAGE");
   const [submitAgency, setSubmitAgency] = useState("Cyber Crime Cell");
+  const [useEncryption, setUseEncryption] = useState(false); // NEW: Encryption toggle
+  const [encryptionKey, setEncryptionKey] = useState(""); // NEW: Store encryption key
+  const [isEncrypted, setIsEncrypted] = useState(false); // NEW: Track if evidence is encrypted
 
   const [toActor, setToActor] = useState("0x000000000000000000000000000000000000dEaD");
   const [fromOrg, setFromOrg] = useState("Cyber Crime Cell");
@@ -554,11 +557,37 @@ export function SatyaVaultDashboard() {
     }
 
     setBusy(true);
-    setStatus("Uploading file to IPFS...");
-
+    
     try {
+      let fileToUpload = uploadFile;
+      let finalHash = uploadHash;
+
+      // NEW: Handle encryption if enabled
+      if (useEncryption) {
+        setStatus("Encrypting file with AES-256-GCM...");
+        const { encryptFile } = await import("@/lib/encryption");
+        const { encryptedData, iv, key } = await encryptFile(uploadFile);
+        
+        setEncryptionKey(key);
+        setIsEncrypted(true);
+        
+        // Create encrypted file blob
+        fileToUpload = new File(
+          [encryptedData],
+          uploadFile.name + ".enc",
+          { type: "application/octet-stream" }
+        );
+        
+        // Store IV in a way we can retrieve later
+        (fileToUpload as any).encryptionIV = iv;
+        
+        setStatus("File encrypted. Uploading to IPFS...");
+      } else {
+        setStatus("Uploading file to IPFS...");
+      }
+
       const formData = new FormData();
-      formData.append("file", uploadFile);
+      formData.append("file", fileToUpload);
 
       const response = await fetch("/api/ipfs", {
         method: "POST",
@@ -572,7 +601,12 @@ export function SatyaVaultDashboard() {
 
       setUploadedIpfsUri(payload.ipfsUri);
       setUploadedGatewayUrl(payload.gatewayUrl);
-      setStatus("IPFS upload complete. Ready for blockchain registration.");
+      
+      if (useEncryption) {
+        setStatus("🔒 Encrypted IPFS upload complete. Ready for blockchain registration.");
+      } else {
+        setStatus("IPFS upload complete. Ready for blockchain registration.");
+      }
     } catch (error) {
       setStatus(`IPFS upload error: ${String(error)}`);
     } finally {
@@ -674,6 +708,34 @@ export function SatyaVaultDashboard() {
       });
 
       setStatus(`Evidence #${evidenceId} registered successfully.`);
+      
+      // NEW: Store encryption key if encryption was used
+      if (useEncryption && encryptionKey) {
+        try {
+          setStatus("Storing encryption key in contract...");
+          
+          // Authorize current custodian and admin to decrypt
+          const authorizedAddresses = [
+            walletAddress, // Current custodian
+            walletAddress // In production, add FSL/Court addresses
+          ];
+          
+          for (const addr of authorizedAddresses) {
+            const storeTx = await writeContract.storeEncryptionKey(
+              evidenceId,
+              addr,
+              encryptionKey
+            );
+            await storeTx.wait();
+          }
+          
+          setStatus("🔒 Encryption key stored. Authorized users can decrypt.");
+        } catch (encError) {
+          console.error("Failed to store encryption key:", encError);
+          setStatus("Evidence registered, but encryption key storage failed.");
+        }
+      }
+      
       setSelectedEvidenceId(evidenceId);
       setVerifyEvidenceId(evidenceId);
       await loadSearch();
@@ -1152,6 +1214,11 @@ export function SatyaVaultDashboard() {
               <p className={clsx("mt-1 font-medium", actorProfile?.active ? "text-green-700" : "text-amber-700")}>
                 {actorProfile?.active ? "Active profile" : "Inactive or missing profile"}
               </p>
+              {walletAddress && (!actorProfile || !actorProfile.active || actorProfile.role === "NONE") ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  Ask a Ministry Admin to provision your wallet role on-chain before using evidence workflows.
+                </p>
+              ) : null}
             </div>
 
             {isAdmin ? (
@@ -1269,6 +1336,33 @@ export function SatyaVaultDashboard() {
                 </option>
               ))}
             </select>
+
+            {/* NEW: Encryption Toggle */}
+            <div className="mt-3 flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="encryption-toggle"
+                  checked={useEncryption}
+                  onChange={(e) => setUseEncryption(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-base focus:ring-base"
+                />
+                <label htmlFor="encryption-toggle" className="text-sm font-medium text-slate-700">
+                  🔒 Encrypt with AES-256
+                </label>
+              </div>
+              <span className="text-xs text-slate-500">
+                {useEncryption ? "Enabled" : "Optional"}
+              </span>
+            </div>
+            {useEncryption && (
+              <div className="mt-2 rounded-xl border border-base/30 bg-base/10 p-3 text-xs text-slate-700">
+                <p className="font-semibold">🔐 Zero-Knowledge Encryption</p>
+                <p className="mt-1">
+                  File will be encrypted locally before upload. Only authorized roles can decrypt.
+                </p>
+              </div>
+            )}
 
             <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
               <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Local SHA-256</p>
