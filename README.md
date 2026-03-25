@@ -540,9 +540,9 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## 📞 Contact
 
 **Built by:** Satvik Mudgal
-**Email:** setwetmudgal@gmail.com
+**Email:** satvikmudgalofficial@gmail.com
 
-**Repository:** https://github.com/yourusername/SatyaVault
+**Repository:** https://github.com/SatvikOfficial/SatyaVault
 
 ---
 
